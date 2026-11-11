@@ -11,7 +11,7 @@ env:
 
 jobs:
   build-scan-push:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -28,7 +28,7 @@ jobs:
         run: docker build -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:${{ github.sha }} ./api
 
       - name: Trivy scan
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:${{ github.sha }}
           severity: CRITICAL
