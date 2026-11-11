@@ -1,0 +1,42 @@
+name: ci
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  ECR_REPO: url-api
+
+jobs:
+  build-scan-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build image
+        run: docker build -t ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:${{ github.sha }} ./api
+
+      - name: Trivy scan
+        uses: aquasecurity/trivy-action@0.24.0
+        with:
+          image-ref: ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:${{ github.sha }}
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Push image
+        run: |
+          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:${{ github.sha }}
+          docker tag ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:${{ github.sha }} ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:latest
+          docker push ${{ steps.ecr.outputs.registry }}/${{ env.ECR_REPO }}:latest
