@@ -1,6 +1,6 @@
 # Dockerized URL Shortener Platform
 
-A multi-container microservices project built to learn Docker in depth. It runs on an AWS EC2 server with Docker Compose and includes a reverse proxy, a replicated API, a cache, a database, and a full monitoring stack.
+A multi-container microservices project built to learn Docker in depth, with a full CI/CD pipeline. Every `git push` builds the image, scans it for vulnerabilities, pushes it to Amazon ECR, and deploys it automatically to an AWS EC2 server.
 
 ## Architecture
 
@@ -21,6 +21,29 @@ flowchart LR
 
 Three Docker networks separate the layers: `frontend` (Nginx and API), `backend` (API, Redis, PostgreSQL; no internet access) and `monitoring` (API, Prometheus, cAdvisor, Grafana).
 
+## CI/CD pipeline
+
+```mermaid
+flowchart LR
+  D[Developer: git push] --> G[GitHub Actions]
+  G --> B[Build image]
+  B --> T{Trivy scan}
+  T -- critical found --> X[Pipeline fails]
+  T -- clean --> E[Push to Amazon ECR]
+  E --> S[AWS SSM send-command]
+  S --> V[EC2 runs deploy.sh: pull image and restart containers]
+```
+
+- Images are tagged with the commit ID, so every release is traceable and can be rolled back.
+- Deployment uses AWS Systems Manager instead of SSH, so no SSH port is exposed to the internet and no SSH key is stored in GitHub.
+- The server pulls images using an IAM role, so no AWS keys are stored on it.
+
+![Pipeline runs](docs/pipeline-runs.png)
+
+![Trivy blocking a vulnerable image](docs/trivy-blocked.png)
+
+![Images in Amazon ECR](docs/ecr-images.png)
+
 ## Screenshots
 
 ![Grafana dashboard](docs/grafana-dashboard.png)
@@ -35,11 +58,21 @@ Three Docker networks separate the layers: `frontend` (Nginx and API), `backend`
 - Persistent data with a named volume (links survive `docker compose down`)
 - Two API replicas load-balanced by Nginx using Docker DNS
 - Monitoring with Prometheus, cAdvisor and Grafana (dashboard exported in `monitoring/`)
-- Secrets kept in a `.env` file that is excluded from Git
+- CI/CD with GitHub Actions, Trivy vulnerability scanning and Amazon ECR
+- Automatic deployment to EC2 through AWS SSM, and rollback to any earlier image tag
+- Secrets kept in `.env` and GitHub Secrets, never committed
+
+## Verified behaviour
+
+- Persistence: short links survive `docker compose down` and `up`, and are lost only with `down -v`
+- Isolation: `ping` from Nginx to the API succeeds and to the database fails
+- Release: a pushed code change appeared on the server automatically (health endpoint showed the new version)
+- Rollback: deploying an older commit tag brought back the previous behaviour in seconds, and the next pipeline run rolled forward again
+- Security gate: an image built from an outdated base image was blocked by Trivy before reaching ECR or the server
 
 ## Tech stack
 
-Docker, Docker Compose, Python (Flask, Gunicorn), Nginx, Redis, PostgreSQL, Prometheus, cAdvisor, Grafana, AWS EC2
+Docker, Docker Compose, Python (Flask, Gunicorn), Nginx, Redis, PostgreSQL, Prometheus, cAdvisor, Grafana, GitHub Actions, Trivy, Amazon ECR, AWS EC2, IAM, AWS Systems Manager
 
 ## Project structure
 
@@ -48,10 +81,12 @@ api/                       Flask app, requirements.txt, Dockerfile
 nginx/                     Nginx reverse proxy config
 monitoring/                Prometheus config and Grafana dashboard JSON
 docs/                      Screenshots
+.github/workflows/ci.yml   CI/CD pipeline
+deploy.sh                  Script run on the server to pull and restart
 docker-compose.yml         The whole stack
 ```
 
-## Run it
+## Run it locally
 
 1. Create a `.env` file with: POSTGRES_DB, POSTGRES_USER, POSTGRES_PASSWORD, DB_NAME, DB_USER, DB_PASSWORD, DB_HOST=db, REDIS_HOST=redis
 2. Start everything: `docker compose up -d --build`
@@ -66,16 +101,12 @@ docker-compose.yml         The whole stack
 - `GET /health` health check
 - `GET /metrics` Prometheus metrics
 
-## Dashboard queries
-
-- Requests per second: `sum(rate(http_requests_total[1m])) by (endpoint)`
-- Container memory: `sum by (name) (container_memory_usage_bytes{name=~".+"})`
-- Container CPU: `sum by (name) (rate(container_cpu_usage_seconds_total{name=~".+"}[1m]))`
-
 ## Roadmap
 
 - [x] Dockerized API with multi-stage build
 - [x] Compose stack with Nginx, Redis, PostgreSQL
 - [x] Monitoring with Prometheus, cAdvisor, Grafana
-- [ ] CI/CD with GitHub Actions, Trivy scan, Amazon ECR
-- [ ] Infrastructure with Terraform and automatic deploy
+- [x] CI/CD with GitHub Actions, Trivy scan, Amazon ECR
+- [x] Automatic deployment to EC2 with SSM
+- [ ] Infrastructure as code with Terraform
+- [ ] Health check that also verifies the database connection
