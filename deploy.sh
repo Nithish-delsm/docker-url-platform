@@ -7,3 +7,4 @@ aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS
 docker compose pull api
 docker compose up -d
 docker image prune -f
+docker compose exec -T nginx nginx -s reload
