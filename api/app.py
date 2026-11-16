@@ -29,7 +29,7 @@ for _ in range(15):
 
 @app.route('/health')
 def health():
-    return {'status': 'ok'}
+    return {'status': 'ok', 'version': 'v2'}
 
 @app.route('/metrics')
 def metrics():
