@@ -4,6 +4,7 @@ A multi-container microservices project built to learn Docker in depth, with a f
 
 ## Architecture
 
+![Docker URL Platform Architecture](docs/docker-url-platform-architecture.png)
 ```mermaid
 flowchart LR
   U[User] --> N[Nginx :80]
