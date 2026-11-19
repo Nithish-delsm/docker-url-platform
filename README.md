@@ -6,20 +6,6 @@ A multi-container microservices project built to learn Docker in depth, with a f
 
 ![Docker URL Platform Architecture](docs/docker-url-platform-architecture.png)
 
-flowchart LR
-  U[User] --> N[Nginx :80]
-  N --> A1[Flask API replica 1]
-  N --> A2[Flask API replica 2]
-  A1 --> R[(Redis cache)]
-  A2 --> R
-  A1 --> P[(PostgreSQL)]
-  A2 --> P
-  PR[Prometheus] -. scrapes .-> A1
-  PR -. scrapes .-> A2
-  PR -. scrapes .-> C[cAdvisor]
-  G[Grafana] --> PR
-```
-
 Three Docker networks separate the layers: `frontend` (Nginx and API), `backend` (API, Redis, PostgreSQL; no internet access) and `monitoring` (API, Prometheus, cAdvisor, Grafana).
 
 ## CI/CD pipeline
